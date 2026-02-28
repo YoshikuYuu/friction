@@ -7,7 +7,7 @@ CORS(app)
 @app.route('/checktab', methods=['POST'])
 def checktab():
     data = request.get_json()
-    print(data)
+    print(data.get('title'))
     return jsonify({"msg": "Success"})
 
 @app.route('/description', methods=['POST'])
