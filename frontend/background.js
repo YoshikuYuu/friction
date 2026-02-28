@@ -3,51 +3,55 @@
 // });
 
 /**
- * Retrieves the URL of a Chrome tab by its ID.
+ * Retrieves the URL and title of a Chrome tab by its ID.
  *
- * @param {number} tabId - The ID of the tab whose URL should be retrieved.
- * @param {(url: string|null) => void} callback - Function invoked with the
- *        tab's URL on success, or `null` if an error occurs.
+ * @param {number} tabId - The ID of the tab whose info should be retrieved.
+ * @param {(info: {url: string|null, title: string|null}) => void} callback - Function invoked with
+ *        the tab's URL and title on success, or nulls if an error occurs.
  */
-function getTabUrl(tabId, callback) {
+function getTabInfo(tabId, callback) {
     chrome.tabs.get(tabId, (tab) => {
         if (chrome.runtime.lastError) {
             console.error("Error getting tab:", chrome.runtime.lastError);
-            callback(null); // Return null in case of an error
+            callback({ url: null, title: null }); // Return nulls on error
         } else {
-            callback(tab.url); // Return the URL via the callback
+            callback({ url: tab.url, title: tab.title }); // Return URL and title
         }
     });
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  console.log("tab updated: " + tabId);
-  getTabUrl(tabId, (taburl) => {
-    console.log("tab updated url: " + taburl);
-    if (taburl) {
-      fetch("http://127.0.0.1:8000/checktab", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(taburl)
-      }) 
-      .then(res => res.json())
-      .then(data => {
-        const success = data.status === "success";
-        console[success ? "log" : "error"](data.msg || data);
-        chrome.runtime.sendMessage({
-          action: "updateUI",
-          status: success ? "success" : "error",
-          message: data.msg
-        });
+    console.log("tab updated: " + tabId);
 
-        if (success) {
-          //
+    getTabInfo(tabId, ({ url, title }) => {
+        console.log("tab updated url:", url);
+        console.log("tab updated title:", title);
+
+        if (url) {
+          const tabInfo = {url: url, title: title}
+            fetch("http://127.0.0.1:8000/checktab", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(tabInfo) // send both url and title
+            })
+            .then(res => res.json())
+            .then(data => {
+                const success = data.status === "success";
+                console[success ? "log" : "error"](data.msg || data);
+                chrome.runtime.sendMessage({
+                    action: "updateUI",
+                    status: success ? "success" : "error",
+                    message: data.msg
+                });
+
+                if (success) {
+                    // Optional: do something when success
+                }
+            })
+            .catch(err => {
+                console.error("Error:", err);
+                // Optional: handle fetch error
+            });
         }
-      })
-      .catch(err => {
-        console.error("Error:", err);
-        //
-      });
-    }
-  });
+    });
 });
