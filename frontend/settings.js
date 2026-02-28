@@ -9,6 +9,7 @@ let positiveTags = new Set();
 let negativeTags = new Set();
 let title = "";
 let desc = "";
+let blockType = "";
 
 let blockedItems = JSON.parse(localStorage.getItem("blockedItems")) || {};
 
@@ -57,6 +58,7 @@ function removeItem(key) {
 function addItem() {
     title = inputTitle.value.trim();
     desc = inputDesc.value.trim();
+    blockType = document.getElementById("choices").value;
 
     if (title === "" || desc === "") return;
 
@@ -139,9 +141,10 @@ function doneItem() {
         desc: desc,
         positiveTags: Array.from(positiveTags),
         negativeTags: Array.from(negativeTags),
+        blockType: blockType
     };
 
-    const tabPackage = { desc: desc, positiveTags: Array.from(positiveTags), negativeTags: Array.from(negativeTags) }
+    const tabPackage = { desc: desc, positiveTags: Array.from(positiveTags), negativeTags: Array.from(negativeTags), blockType: blockType }
 
     fetch("http://127.0.0.1:8000/tags", {
         method: "POST",
@@ -165,6 +168,7 @@ function doneItem() {
 
     titleCount.textContent = "0";
     descCount.textContent = "0";
+    document.getElementById("choices").selectedIndex = 0;
 
     renderList();
 }
