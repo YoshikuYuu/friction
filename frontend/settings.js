@@ -60,12 +60,15 @@ function addItem() {
     desc = inputDesc.value.trim();
     blockType = document.getElementById("choices").value;
 
+    const descPackage = { name: title, desc: desc, blockType: blockType }
+
+
     if (title === "" || desc === "") return;
 
     fetch("http://127.0.0.1:8000/description", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(desc)
+        body: JSON.stringify(descPackage)
     }) 
     .then(res => res.json())
     .then(data => {
@@ -144,7 +147,7 @@ function doneItem() {
         blockType: blockType
     };
 
-    const tabPackage = { desc: desc, positiveTags: Array.from(positiveTags), negativeTags: Array.from(negativeTags), blockType: blockType }
+    const tabPackage = { name: title, desc: desc, positiveTags: Array.from(positiveTags), negativeTags: Array.from(negativeTags), blockType: blockType }
 
     fetch("http://127.0.0.1:8000/tags", {
         method: "POST",

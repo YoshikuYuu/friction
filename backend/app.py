@@ -8,7 +8,11 @@ CORS(app)
 def checktab():
     data = request.get_json()
     print(data.get('title'))
-    return jsonify({"msg": "Success"})
+    if "gmail" in data.get('title'):
+        msg = 'block'
+    else:
+        msg = 'stay'
+    return jsonify({"status": "success", "msg": msg})
 
 @app.route('/description', methods=['POST'])
 def description():

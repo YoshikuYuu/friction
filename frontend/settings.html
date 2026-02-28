@@ -11,46 +11,51 @@
         </head>
     <body>
     <div class="container">
-        <h2>BLOCKED SITE SETTINGS</h2>
+        <h2>SITE SETTINGS</h2>
 
-        <div class="blin fade show" id="div1">
-            <label for="blockedInput">Add to Blocked List</label>
-            <span>Category Name</span>
-            <input type="text" id="blockedInputTitle" maxlength="50" placeholder="Example: All celebrities">
-            <div class="char-count">
-                <span id="charCountTitle">0</span> / 50
-            </div>
-            <span>Category Description</span>
-            <textarea 
-                id="blockedInputDesc" 
-                maxlength="500" 
-                rows="5" 
-                placeholder="Example: All celebrities"></textarea>
-            <div class="char-count">
-                <span id="charCountDesc">0</span> / 500
-            </div>
-            <div class="blType">
-                <span>Type of restriction</span>
-                <select id="choices" name="choices">
-                    <option value="" disabled selected>Choose one</option>
-                    <option value="warn">Warn</option>
-                    <option value="block">Block</option>
-                </select>
-            </div>
-            <div class="btnContainer">
-                <button class="contBtn" id="addBtn">Add ⟶</button>
-            </div>
+        <div class="tabs">
+            <div class="tab">Add to Blocked List</div>
+            <div class="tab">Add to Allowed List</div>
         </div>
-
-        <div id="div2" class="tagin fade">
-            Help us refine your category. Check fields you would like to keep, and X fields you would like to block.
-            <div id="tagContainer" class="tagContainer"></div>
-            <div class="btnContainer">
-                <button class="contBtn" id="doneBtn">Done ⟶</button>
+        <div class="bucket">
+            <div class="blin fade show" id="div1">
+                <span>Category Name</span>
+                <input type="text" id="blockedInputTitle" maxlength="50" placeholder="Example: All celebrities">
+                <div class="char-count">
+                    <span id="charCountTitle">0</span> / 50
+                </div>
+                <span>Category Description</span>
+                <textarea 
+                    id="blockedInputDesc" 
+                    maxlength="500" 
+                    rows="5" 
+                    placeholder="Example: All celebrities"></textarea>
+                <div class="char-count">
+                    <span id="charCountDesc">0</span> / 500
+                </div>
+                <div class="blType">
+                    <span>Type of restriction</span>
+                    <select id="choices" name="choices">
+                        <option value="" disabled selected>Choose one</option>
+                        <option value="warn">Warn</option>
+                        <option value="block">Block</option>
+                    </select>
+                </div>
+                <div class="btnContainer">
+                    <button class="contBtn" id="addBtn">Add ⟶</button>
+                </div>
             </div>
-        </div>
 
-        <ul id="blockedList"></ul>
+            <div id="div2" class="tagin fade">
+                Help us refine your category. Check fields you would like to keep, and X fields you would like to block.
+                <div id="tagContainer" class="tagContainer"></div>
+                <div class="btnContainer">
+                    <button class="contBtn" id="doneBtn">Done ⟶</button>
+                </div>
+            </div>
+
+            <ul id="blockedList"></ul>
+        </div>
     </div>
     <script src="settings.js"></script>
     </body>

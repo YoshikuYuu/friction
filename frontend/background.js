@@ -21,37 +21,34 @@ function getTabInfo(tabId, callback) {
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    console.log("tab updated: " + tabId);
+  if (changeInfo.status !== "complete") return;
+  console.log("tab updated: " + tabId);
 
-    getTabInfo(tabId, ({ url, title }) => {
-        console.log("tab updated url:", url);
-        console.log("tab updated title:", title);
+  getTabInfo(tabId, ({ url, title }) => {
+    console.log("tab updated url:", url);
+    console.log("tab updated title:", title);
 
-        if (url) {
-          const tabInfo = {url: url, title: title}
-            fetch("http://127.0.0.1:8000/checktab", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(tabInfo) // send both url and title
-            })
-            .then(res => res.json())
-            .then(data => {
-                const success = data.status === "success";
-                console[success ? "log" : "error"](data.msg || data);
-                chrome.runtime.sendMessage({
-                    action: "updateUI",
-                    status: success ? "success" : "error",
-                    message: data.msg
-                });
-
-                if (success) {
-                    // Optional: do something when success
-                }
-            })
-            .catch(err => {
-                console.error("Error:", err);
-                // Optional: handle fetch error
-            });
+    if (url) {
+      const tabInfo = {url: url, title: title};
+      fetch("http://127.0.0.1:8000/checktab", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(tabInfo) // send both url and title
+      })
+      .then(res => res.json())
+      .then(data => {
+        const success = data.status === "success";
+        console[success ? "log" : "error"](data.msg || data);
+        if (success) {
+            if (data.msg === "block") {
+              chrome.tabs.update(tabId, { url: chrome.runtime.getURL("blocked.html") });
+            }
         }
-    });
+      })
+      .catch(err => {
+          console.error("Error:", err);
+          // Optional: handle fetch error
+      });
+    }
+  });
 });

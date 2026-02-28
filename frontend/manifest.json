@@ -22,6 +22,9 @@
       "scripting",
       "tabs",
       "activeTab",
-      "tabCapture"
+      "tabCapture",
+      "tabs",
+      "declarativeNetRequest",
+      "declarativeNetRequestWithHostAccess"
     ]
 }
