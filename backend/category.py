@@ -5,13 +5,31 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from typing import List, Dict, Callable, Optional
 
+BLOCKMODE_STRICT = "strict"
+BLOCKMODE_WARN = "warn"
+
+class CategoryConfig:
+    """Configuration for a category, including its name and definitions."""
+    name: str
+    initial_definition: str
+    block_mode: str
+    positive_definitions: List[str]
+    negative_definitions: List[str]
+
+    def __init__(self,
+                 name: str,
+                 initial_definition: str, 
+                 block_mode: str):
+        self.name = name
+        self.initial_definition = initial_definition
+        self.block_mode = block_mode
+        self.positive_definitions = [initial_definition]
+        self.negative_definitions = []
+
 class Category:
     """A category of webpages defined by a simple semantic classifier.
     """
-    model: SentenceTransformer
-    category_name: str
-    negative_definitions: List[str]
-    positive_definitions: List[str]
+    config: CategoryConfig
     negative_embeddings: torch.Tensor
     positive_embeddings: torch.Tensor
     boundary_q: float = 0.9
@@ -20,18 +38,17 @@ class Category:
     boundary: float
 
     def __init__(self,
-                 name: str,
-                 positive_definitions: List[str],
-                 negative_definitions: List[str],
+                 cfg: CategoryConfig,
                  embed_fn: Callable[[List[str]], torch.Tensor]):
-        self.name = name
+        self.config = cfg
         self.embed_fn = embed_fn
 
-        self.positive_definitions = positive_definitions
-        self.positive_embeddings = self.embed_fn(positive_definitions)
-        if negative_definitions:
-            self.negative_definitions = negative_definitions
-            self.negative_embeddings = self.embed_fn(negative_definitions)
+        pos_defs = self.config.positive_definitions
+        neg_defs = self.config.negative_definitions
+
+        self.positive_embeddings = self.embed_fn(pos_defs)
+        if neg_defs:
+            self.negative_embeddings = self.embed_fn(neg_defs)
         
 
         max_member_similarities = self._get_max_member_similarities()
@@ -44,7 +61,7 @@ class Category:
     def _get_max_member_similarities(self) -> torch.Tensor:
         """Computes the maximum cosine similarity for each positive embedding
         with respect to other positive embeddings."""
-        if len(self.positive_definitions) < 2:
+        if len(self.config.positive_definitions) < 2:
             return torch.tensor([0.05])  # Default low similarity if only one positive definition
         
         member_cosine_sim = F.cosine_similarity(
@@ -59,8 +76,8 @@ class Category:
 
     def _get_min_negative_distances(self) -> torch.Tensor:
         """Computes the maximum cosine similarity of each positive embedding to the nearest negative embedding."""
-        if not self.negative_definitions:
-            return torch.zeros(len(self.positive_definitions))  # No negatives, so return 0 similarity
+        if not self.config.negative_definitions:
+            return torch.zeros(len(self.config.positive_definitions))  # No negatives, so return 0 similarity
         
         negative_similarities = F.cosine_similarity(
             self.positive_embeddings, # (P, D)
@@ -83,7 +100,7 @@ class Category:
             emb, # (D,)
             self.negative_embeddings, # (N, D)
             dim=-1
-        ).max().item() if self.negative_definitions else 0.0
+        ).max().item() if self.config.negative_definitions else 0.0
         
         sim_diff = max_pos_sim - max_neg_sim
         return (max_pos_sim >= self.member_sim_th) and (sim_diff >= self.boundary)
