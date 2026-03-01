@@ -48,14 +48,26 @@ class Category:
 
         self._refresh_embeddings_and_thresholds()
 
+    def _as_tensor(self, values) -> torch.Tensor:
+        if isinstance(values, torch.Tensor):
+            tensor = values
+        else:
+            tensor = torch.as_tensor(values)
+
+        if tensor.ndim == 1:
+            tensor = tensor.unsqueeze(0)
+        return tensor.float()
+
     def _refresh_embeddings_and_thresholds(self) -> None:
 
         pos_defs = self.config.positive_definitions
         neg_defs = self.config.negative_definitions
 
-        self.positive_embeddings = self.embed_fn(pos_defs)
+        self.positive_embeddings = self._as_tensor(self.embed_fn(pos_defs))
         if neg_defs:
-            self.negative_embeddings = self.embed_fn(neg_defs)
+            self.negative_embeddings = self._as_tensor(self.embed_fn(neg_defs))
+        else:
+            self.negative_embeddings = torch.empty((0, self.positive_embeddings.size(-1)), dtype=torch.float32)
         
 
         max_member_similarities = self._get_max_member_similarities()
@@ -100,7 +112,7 @@ class Category:
 
     def matches(self, text: str) -> bool:
         """Checks if a given text is classified as inside the category."""
-        emb = self.embed_fn([text]).squeeze()
+        emb = self._as_tensor(self.embed_fn([text])).squeeze(0)
 
         max_pos_sim = F.cosine_similarity(
             emb, # (D,)
@@ -112,7 +124,7 @@ class Category:
             emb, # (D,)
             self.negative_embeddings, # (N, D)
             dim=-1
-        ).max().item() if self.config.negative_definitions else 0.0
+        ).max().item() if self.config.negative_definitions and self.negative_embeddings.numel() else 0.0
         
         sim_diff = max_pos_sim - max_neg_sim
         print(f"Debug: text='{text}', max_pos_sim={max_pos_sim:.4f}, max_neg_sim={max_neg_sim:.4f}, sim_diff={sim_diff:.4f}, member_sim_th={self.member_sim_th:.4f}, boundary={self.boundary:.4f}")

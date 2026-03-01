@@ -36,8 +36,8 @@ CORS(app)
 embedder = SentenceTransformer("Snowflake/snowflake-arctic-embed-xs")
 example_generator = ExampleGenerator()
 
-def embed_fn(texts: list[str]) -> torch.Tensor:
-    return torch.as_tensor(embedder.encode(texts), dtype=torch.float32)
+def embedding_fn(texts: list[str]) -> torch.Tensor:
+    return torch.tensor(embedder.encode(texts), dtype=torch.float32)
 
 configs: dict[str, CategoryConfig] = {}
 blocklist_strict: dict[str, Category] = {}
@@ -173,7 +173,7 @@ def tags():
         return jsonify({"status": "error", "msg": f"No category config found for name: {name}"}), 404
 
     cfg.update_definitions(positive=positive_tags, negative=negative_tags)
-    category = Category(cfg, embed_fn=embedder.encode)
+    category = Category(cfg, embed_fn=embedding_fn)
     if cfg.block_mode == BLOCKMODE_STRICT:
         blocklist_strict[name] = category
     else:
