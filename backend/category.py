@@ -35,8 +35,8 @@ class Category:
     config: CategoryConfig
     negative_embeddings: torch.Tensor
     positive_embeddings: torch.Tensor
-    boundary_q: float = 0.9
-    closeness_q: float = 0.1
+    boundary_q: float = 0.5
+    closeness_q: float = 0.0
     member_sim_th: float
     boundary: float
 
@@ -127,11 +127,14 @@ class Category:
         ).max().item() if self.config.negative_definitions and self.negative_embeddings.numel() else 0.0
         
         sim_diff = max_pos_sim - max_neg_sim
+        adjusted_member_sim_th = self.member_sim_th - 0.15
+        adjusted_boundary = self.boundary - 0.05
         debug_info = (
-            f"Debug: text='{text}'\n"
-            f"max_pos_sim={max_pos_sim:.4f} >= member_sim_th={self.member_sim_th:.4f}: {max_pos_sim >= self.member_sim_th}\n"
-            f"sim_diff={sim_diff:.4f} >= boundary={self.boundary:.4f}: {sim_diff >= self.boundary}\n"
+            f"category='{self.config.name}'\n"
+            f"text='{text}'\n"
+            f"max_pos_sim={max_pos_sim:.4f} >= member_sim_th={adjusted_member_sim_th:.4f}: {max_pos_sim >= adjusted_member_sim_th}\n"
+            f"sim_diff={sim_diff:.4f} >= boundary={adjusted_boundary:.4f}: {sim_diff >= adjusted_boundary}\n"
         )
         print(debug_info)
-        return (max_pos_sim >= self.member_sim_th) and (sim_diff >= self.boundary)
+        return (max_pos_sim >= adjusted_member_sim_th) and (sim_diff >= adjusted_boundary)
 

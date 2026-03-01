@@ -4,6 +4,7 @@ from sentence_transformers import SentenceTransformer
 import torch
 import threading
 import time
+import json
 from pathlib import Path
 import re
 import importlib
@@ -45,6 +46,11 @@ allowlist_warn: dict[str, Any] = {}
 
 store = ConfigStore(Path(__file__).parent / "data" / "categories.json")
 PROBE_ROOT_DIR = Path(__file__).parent / "data" / "probes"
+DEFAULT_MASCOT_LINES = {
+    "warn": "Hey. Are you supposed to be on this page?",
+    "strict": "You blocked this page for a reason. Lock back in, nerd.",
+}
+mascot_lines_by_category: dict[str, dict[str, str]] = {}
 
 
 def _bucket_for(list_type: str, block_mode: str) -> dict[str, Any]:
@@ -57,7 +63,7 @@ def _bucket_for(list_type: str, block_mode: str) -> dict[str, Any]:
     return blocklist_strict
 
 
-def _config_to_record(cfg: CategoryConfig, list_type: str) -> dict:
+def _config_to_record(cfg: CategoryConfig, list_type: str, mascot_lines: dict[str, str] | None = None) -> dict:
     return {
         "name": cfg.name,
         "initial_definition": cfg.initial_definition,
@@ -65,6 +71,7 @@ def _config_to_record(cfg: CategoryConfig, list_type: str) -> dict:
         "negative_definitions": cfg.negative_definitions,
         "blockMode": cfg.block_mode,
         "listType": list_type,
+        "mascotLines": mascot_lines or mascot_lines_by_category.get(cfg.name, DEFAULT_MASCOT_LINES),
     }
 
 
@@ -79,12 +86,33 @@ def _probe_dir(name: str, list_type: str, block_mode: str) -> Path:
     return PROBE_ROOT_DIR / folder
 
 
+def _write_probe_dataset_json(
+    cfg: CategoryConfig,
+    list_type: str,
+    dataset: dict[str, list[str]],
+) -> Path:
+    save_dir = _probe_dir(name=cfg.name, list_type=list_type, block_mode=cfg.block_mode)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    dataset_path = save_dir / "dataset.json"
+    payload = {
+        "name": cfg.name,
+        "listType": list_type,
+        "blockMode": cfg.block_mode,
+        "initialDefinition": cfg.initial_definition,
+        "positive": dataset.get("positive", []),
+        "negative": dataset.get("negative", []),
+    }
+    dataset_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return dataset_path
+
+
 def _train_and_attach_classifier(
     cfg: CategoryConfig,
     list_type: str,
-    epochs: int = 4,
+    epochs: int = 8,
 ) -> tuple[Any, dict]:
     dataset = example_generator.generate_probe_dataset(cfg, n=200)
+    dataset_path = _write_probe_dataset_json(cfg=cfg, list_type=list_type, dataset=dataset)
     classifier = CategoryClassifier(cfg=cfg, embed_fn=embedding_fn)
     train_result = classifier.train_probe(
         positive_texts=dataset["positive"],
@@ -102,6 +130,7 @@ def _train_and_attach_classifier(
         "samples": train_result.samples,
         "finalLoss": train_result.final_loss,
         "probeDir": str(save_dir),
+        "datasetPath": str(dataset_path),
     }
     return classifier, metrics
 
@@ -112,6 +141,7 @@ def _rebuild_runtime_from_store() -> None:
     blocklist_warn.clear()
     allowlist_strict.clear()
     allowlist_warn.clear()
+    mascot_lines_by_category.clear()
 
     for list_type, block_mode, record in store.iter_records():
         name = record["name"]
@@ -119,6 +149,7 @@ def _rebuild_runtime_from_store() -> None:
         cfg = CategoryConfig(name=name, initial_definition=initial_definition, block_mode=block_mode)
         cfg.positive_definitions = record["positive_definitions"]
         cfg.negative_definitions = record["negative_definitions"]
+        mascot_lines_by_category[name] = record.get("mascotLines", DEFAULT_MASCOT_LINES)
 
         configs[name] = cfg
         classifier = CategoryClassifier(cfg=cfg, embed_fn=embedding_fn)
@@ -132,10 +163,11 @@ def _rebuild_runtime_from_store() -> None:
             try:
                 print(f"Probe missing for category '{name}'. Training a new probe...")
                 dataset = example_generator.generate_probe_dataset(cfg, n=200)
+                _write_probe_dataset_json(cfg=cfg, list_type=list_type, dataset=dataset)
                 classifier.train_probe(
                     positive_texts=dataset["positive"],
                     negative_texts=dataset["negative"],
-                    epochs=4,
+                    epochs=8,
                 )
                 classifier.save(probe_dir)
             except Exception as exc:
@@ -259,9 +291,9 @@ def checktab():
         block_mode = "none"
 
     if block_mode == "warn":
-        threading.Thread(target=warn_audio, daemon=True).start()
+        threading.Thread(target=warn_audio, args=(matched.name if matched else None,), daemon=True).start()
     if block_mode == "strict":
-        threading.Thread(target=strict_audio, daemon=True).start()
+        threading.Thread(target=strict_audio, args=(matched.name if matched else None,), daemon=True).start()
 
     return jsonify(
         {
@@ -273,9 +305,12 @@ def checktab():
         }
     )
 
-def strict_audio():
+def strict_audio(category_name: str | None = None):
+    line = DEFAULT_MASCOT_LINES["strict"]
+    if category_name:
+        line = mascot_lines_by_category.get(category_name, DEFAULT_MASCOT_LINES).get("strict", line)
     audio = elevenlabs.text_to_speech.convert(
-        text="You blocked this page for a reason. Lock back in, nerd.",
+        text=line,
         voice_id="Nggzl2QAXh3OijoXD116",
         model_id="eleven_monolingual_v1",
         output_format="mp3_44100_128",
@@ -288,11 +323,15 @@ def strict_audio():
     )
     play(audio)
 
-def warn_audio():
+def warn_audio(category_name: str | None = None):
     time.sleep(0.3)  # only blocks this thread
 
+    line = DEFAULT_MASCOT_LINES["warn"]
+    if category_name:
+        line = mascot_lines_by_category.get(category_name, DEFAULT_MASCOT_LINES).get("warn", line)
+
     audio = elevenlabs.text_to_speech.convert(
-        text="Hey. Are you supposed to be on this page?",
+        text=line,
         voice_id="Nggzl2QAXh3OijoXD116",
         model_id="eleven_monolingual_v1",
         output_format="mp3_44100_128",
@@ -319,18 +358,17 @@ def description():
     configs[cfg.name] = cfg
 
     list_type = LISTTYPE_BLOCK
-
-    try:
-        _, probe_metrics = _train_and_attach_classifier(cfg=cfg, list_type=list_type, epochs=4)
-    except Exception as exc:
-        print(f"Error training probe for new category '{name}': {exc}")
-        return jsonify({"status": "error", "msg": "Failed to train category probe."}), 500
+    mascot_lines_by_category[cfg.name] = DEFAULT_MASCOT_LINES.copy()
 
     store.upsert_record(
         name=cfg.name,
         list_type=list_type,
         block_mode=cfg.block_mode,
-        record=_config_to_record(cfg, list_type=list_type),
+        record=_config_to_record(
+            cfg,
+            list_type=list_type,
+            mascot_lines=mascot_lines_by_category[cfg.name],
+        ),
     )
 
     tags: list[str] = []
@@ -345,7 +383,6 @@ def description():
         "msg": f"CategoryConfig initialized for {name} in {list_type} with block mode {block_mode}.",
         "categoryName": name,
         "tags": tags,
-        "probeTraining": probe_metrics,
     })
 
 @app.route('/tags', methods=['POST'])
@@ -370,16 +407,24 @@ def tags():
     cfg.update_definitions(positive=positive_tags, negative=negative_tags)
 
     try:
-        _, probe_metrics = _train_and_attach_classifier(cfg=cfg, list_type=list_type, epochs=4)
+        _, probe_metrics = _train_and_attach_classifier(cfg=cfg, list_type=list_type, epochs=8)
     except Exception as exc:
         print(f"Error retraining probe for category '{name}': {exc}")
         return jsonify({"status": "error", "msg": "Failed to retrain category probe."}), 500
+
+    try:
+        mascot_lines = example_generator.generate_mascot_lines(cfg)
+    except Exception as exc:
+        print(f"Error generating mascot lines for category '{name}': {exc}")
+        mascot_lines = DEFAULT_MASCOT_LINES.copy()
+
+    mascot_lines_by_category[cfg.name] = mascot_lines
 
     store.upsert_record(
         name=cfg.name,
         list_type=list_type,
         block_mode=cfg.block_mode,
-        record=_config_to_record(cfg, list_type=list_type),
+        record=_config_to_record(cfg, list_type=list_type, mascot_lines=mascot_lines),
     )
 
     return jsonify(
@@ -390,6 +435,7 @@ def tags():
             "positiveCount": len(cfg.positive_definitions),
             "negativeCount": len(cfg.negative_definitions),
             "probeTraining": probe_metrics,
+            "mascotLines": mascot_lines,
         }
     )
 

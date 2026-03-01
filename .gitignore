@@ -4,3 +4,4 @@ backend/__pycache__
 .vscode
 __pycache__
 categories.json
+data/

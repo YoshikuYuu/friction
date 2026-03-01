@@ -135,3 +135,55 @@ class ExampleGenerator:
             )
 
         return {"positive": normalized_pos, "negative": normalized_neg}
+
+    def generate_mascot_lines(self, cfg: "CategoryConfig") -> dict[str, str]:
+        prompt = (
+            "You are writing two short lines for an anime girl mascot in a productivity blocker app.\n"
+            "The lines must be category-aware, playful, and concise.\n"
+            "Do not be hateful, sexual, or threatening.\n"
+            "Category name:\n"
+            f"\"\"{cfg.name.strip()}\"\"\"\n"
+            "Category definition:\n"
+            f"\"\"{cfg.initial_definition.strip()}\"\"\"\n"
+            "Return EXACTLY a JSON object with fields:\n"
+            "- 'warn': gentle warning line\n"
+            "- 'strict': firmer block line\n"
+            "Each line must be <= 18 words. Output ONLY valid JSON."
+        )
+
+        response = self.client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json",
+                "response_json_schema": {
+                    "type": "object",
+                    "properties": {
+                        "warn": {"type": "string"},
+                        "strict": {"type": "string"},
+                    },
+                    "required": ["warn", "strict"],
+                    "additionalProperties": False,
+                },
+            },
+        )
+
+        try:
+            payload = json.loads(response.text or "{}")
+        except json.JSONDecodeError as e:
+            raise ValueError("Gemini returned non-JSON output for mascot lines.") from e
+
+        if not isinstance(payload, dict):
+            raise ValueError("Gemini returned JSON that is not an object for mascot lines.")
+
+        warn = payload.get("warn", "")
+        strict = payload.get("strict", "")
+        if not isinstance(warn, str) or not warn.strip():
+            raise ValueError("Gemini mascot response missing non-empty 'warn' line.")
+        if not isinstance(strict, str) or not strict.strip():
+            raise ValueError("Gemini mascot response missing non-empty 'strict' line.")
+
+        return {
+            "warn": warn.strip(),
+            "strict": strict.strip(),
+        }
