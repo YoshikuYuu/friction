@@ -20,6 +20,14 @@ function getTabInfo(tabId, callback) {
     });
 }
 
+function isBlockedInPage(url) {
+  if (!url) return false;
+  console.log("Checking if URL is a BlockedIn page:", url);
+  return url.startsWith(chrome.runtime.getURL(""))
+  || url.startsWith(`chrome-extension:`)
+  || url.startsWith(`extension:`);
+}
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete") return;
   console.log("tab updated: " + tabId);
@@ -27,6 +35,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   getTabInfo(tabId, ({ url, title }) => {
     console.log("tab updated url:", url);
     console.log("tab updated title:", title);
+
+    if (isBlockedInPage(url)) {
+      console.log("Skipping checktab for BlockedIn page:", url);
+      return;
+    }
 
     if (url) {
       const tabInfo = {url: url, title: title};
