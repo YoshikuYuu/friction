@@ -1,10 +1,13 @@
 // popup.js — runs in the extension popup window
 
 document.addEventListener("DOMContentLoaded", () => {
-  const statusEl = document.getElementById("status");
   const actionBtn = document.getElementById("actionBtn");
-  const pageInfoEl = document.getElementById("pageInfo");
   const closeBtn = document.getElementById("closeBtn");
+
+  fetch("http://127.0.0.1:8000/home", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+  })
 
   // Main action button
   actionBtn.addEventListener("click", () => {

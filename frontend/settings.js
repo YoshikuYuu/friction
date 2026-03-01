@@ -31,17 +31,20 @@ function renderList() {
     Object.entries(blockedItems).forEach(([key, item]) => {
         console.log("key: " + key + ", item: " + item)
         const li = document.createElement("li");
+        const liTitle = document.createElement("span");
+        liTitle.textContent = `${key}`;
+        liTitle.classList.add("liTitle");
+        const liDesc = document.createElement("span");
+        liDesc.textContent = item.desc;
+        liDesc.classList.add("liDesc");
 
-        li.innerHTML = `
-            <strong>${key}</strong><br>
-            <small>${item.desc}</small>
-        `;
-
-        const removeBtn = document.createElement("button");
+        const removeBtn = document.createElement("span");
         removeBtn.textContent = "Remove";
         removeBtn.classList.add("remove-btn");
         removeBtn.onclick = () => removeItem(key); // Use key instead of index
 
+        li.appendChild(liTitle);
+        li.appendChild(liDesc);
         li.appendChild(removeBtn);
         blockedList.appendChild(li);
     });
@@ -227,4 +230,3 @@ doneBtn.addEventListener("click", () => {
 });
 
 renderList();
-enderList();

@@ -43,7 +43,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             if (data.blockMode === "strict") {
               console.log("Here REACHEHHEDHEDH")
               chrome.tabs.update(tabId, { url: chrome.runtime.getURL("blocked.html") });
-            } else if (data.block_mode === "warn") {
+            } else if (data.blockMode === "warn") {
               console.log("Warn REACHED in background.js :3")
               chrome.scripting.executeScript({
                 target: { tabId: tabId },

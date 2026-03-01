@@ -159,24 +159,42 @@ ul {
 }
 
 li {
-    background: #f1f3f5;
+    font-size: 18px;
+    background-color: #eeede9;
+    color: #1b1b1b;
+    padding-top: 0px;
     padding: 8px 12px;
     border-radius: 5px;
     margin-bottom: 8px;
     display: flex;
-    justify-content: space-between;
+    justify-content: left;
     align-items: center;
-    font-size: 14px;
+}
+
+.liTitle {
+    font-weight: bold;
+    width: 80px;
+    padding-right: 15px;
+    border-right: 2px solid #1b1b1b;
+}
+
+.liDesc {
+    padding-left: 15px;
+    width: 70%;
 }
 
 .remove-btn {
-    background: #dc3545;
+    background: #eeede9;
     padding: 5px 8px;
-    font-size: 12px;
+    font-size: 16px;
+    color: #1b1b1b;
+    height: 100%;
+    text-decoration: underline;
 }
 
 .remove-btn:hover {
-    background: #a71d2a;
+    cursor: pointer;
+    background: #f4bd5d;
 }
 
 .tagin {
@@ -265,4 +283,9 @@ li {
     border-color: #eeede9;
     color: #eeede9;
     border-radius: 0px;
+}
+
+.listHead {
+    color: #eeede9;
+    font-size: 20px;
 }
