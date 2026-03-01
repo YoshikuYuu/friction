@@ -59,10 +59,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                   })
 
                   const blingirl = document.createElement("img");
-                  blingirl.src = chrome.runtime.getURL("./assets/blingirl-cropped.webp");
+                  blingirl.src = chrome.runtime.getURL("assets/blingirl2.webp");
                   Object.assign(blingirl.style, {
-                    height: "200px",
-                    width: "180px"
+                    height: "150px",
+                    width: "250px"
                   })
 
                   // Create Continue button

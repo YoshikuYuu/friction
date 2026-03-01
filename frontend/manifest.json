@@ -10,7 +10,7 @@
     },
     "options_page": "settings.html",
     "web_accessible_resources": [{
-      "resources": ["settings.html", "iframe.html", "warn.html", "assets/blingirl-cropped.webp"],
+      "resources": ["settings.html", "iframe.html", "warn.html", "assets/blingirl-cropped.webp", "assets/blingirl2.webp"],
       "matches": ["<all_urls>"]
     }],
     "background": {
