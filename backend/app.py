@@ -119,6 +119,24 @@ def _parse_tags_payload(data):
         }
     raise ValueError("Payload must be a JSON object.")
 
+@app.route('/home', methods=['POST'])
+def home():
+    # audio = elevenlabs.text_to_speech.convert(
+    #     text="Hey there. Welcome to BlockedIn.",
+    #     voice_id="Nggzl2QAXh3OijoXD116",
+    #     model_id="eleven_monolingual_v1",
+    #     output_format="mp3_44100_128",
+    #     voice_settings=VoiceSettings(
+    #         stability=0.5,
+    #         similarity_boost=0.75,
+    #         style=0.0,
+    #         speed=0.7,
+    #     ),
+    # )
+    # play(audio)
+    return jsonify({"status": "success"})
+
+
 @app.route('/checktab', methods=['POST'])
 def checktab():
     data = request.get_json(silent=True)
@@ -154,8 +172,11 @@ def checktab():
         msg = "No category match found."
         block_mode = "none"
 
-    # threading.Thread(target=delayed_audi
-    # o, daemon=True).start()
+    if block_mode == "warn":
+        threading.Thread(target=warn_audio, daemon=True).start()
+    if block_mode == "strict":
+        threading.Thread(target=strict_audio, daemon=True).start()
+
     return jsonify(
         {
             "status": "success",
@@ -165,11 +186,26 @@ def checktab():
         }
     )
 
-def delayed_audio():
+def strict_audio():
+    audio = elevenlabs.text_to_speech.convert(
+        text="You blocked this page for a reason. Lock back in, nerd.",
+        voice_id="Nggzl2QAXh3OijoXD116",
+        model_id="eleven_monolingual_v1",
+        output_format="mp3_44100_128",
+        voice_settings=VoiceSettings(
+            stability=0.5,
+            similarity_boost=0.75,
+            style=0.0,
+            speed=0.7,
+        ),
+    )
+    play(audio)
+
+def warn_audio():
     time.sleep(0.3)  # only blocks this thread
 
     audio = elevenlabs.text_to_speech.convert(
-        text="Hey! Are you supposed to be on this page?",
+        text="Hey. Are you supposed to be on this page?",
         voice_id="Nggzl2QAXh3OijoXD116",
         model_id="eleven_monolingual_v1",
         output_format="mp3_44100_128",
