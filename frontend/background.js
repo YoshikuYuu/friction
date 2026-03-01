@@ -22,7 +22,6 @@ function getTabInfo(tabId, callback) {
 
 function isBlockedInPage(url) {
   if (!url) return false;
-  console.log("Checking if URL is a BlockedIn page:", url);
   return url.startsWith(chrome.runtime.getURL(""))
   || url.startsWith(`chrome-extension:`)
   || url.startsWith(`extension:`);
