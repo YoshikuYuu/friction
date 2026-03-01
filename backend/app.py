@@ -5,11 +5,16 @@ import torch
 import threading
 import time
 from pathlib import Path
+import re
+import importlib
+from typing import Any
 
-from category import Category, CategoryConfig, BLOCKMODE_STRICT, BLOCKMODE_WARN
+from category import CategoryConfig, BLOCKMODE_STRICT, BLOCKMODE_WARN
 from config_store import ConfigStore, LISTTYPE_ALLOW, LISTTYPE_BLOCK
 from gemini import ExampleGenerator
 from utils import decompose_url
+
+CategoryClassifier = importlib.import_module("categoryclassifier").CategoryClassifier
 
 from dotenv import load_dotenv
 from elevenlabs.client import ElevenLabs
@@ -33,15 +38,16 @@ def embedding_fn(texts: list[str], query: bool) -> torch.Tensor:
     return torch.as_tensor(embedder.encode(texts), dtype=torch.float32)
 
 configs: dict[str, CategoryConfig] = {}
-blocklist_strict: dict[str, Category] = {}
-blocklist_warn: dict[str, Category] = {}
-allowlist_strict: dict[str, Category] = {}
-allowlist_warn: dict[str, Category] = {}
+blocklist_strict: dict[str, Any] = {}
+blocklist_warn: dict[str, Any] = {}
+allowlist_strict: dict[str, Any] = {}
+allowlist_warn: dict[str, Any] = {}
 
 store = ConfigStore(Path(__file__).parent / "data" / "categories.json")
+PROBE_ROOT_DIR = Path(__file__).parent / "data" / "probes"
 
 
-def _bucket_for(list_type: str, block_mode: str) -> dict[str, Category]:
+def _bucket_for(list_type: str, block_mode: str) -> dict[str, Any]:
     if list_type == LISTTYPE_ALLOW and block_mode == BLOCKMODE_STRICT:
         return allowlist_strict
     if list_type == LISTTYPE_ALLOW and block_mode == BLOCKMODE_WARN:
@@ -62,6 +68,44 @@ def _config_to_record(cfg: CategoryConfig, list_type: str) -> dict:
     }
 
 
+def _slugify_name(value: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "-", value.strip().lower())
+    cleaned = re.sub(r"-+", "-", cleaned).strip("-")
+    return cleaned or "untitled"
+
+
+def _probe_dir(name: str, list_type: str, block_mode: str) -> Path:
+    folder = f"{_slugify_name(name)}__{list_type}__{block_mode}"
+    return PROBE_ROOT_DIR / folder
+
+
+def _train_and_attach_classifier(
+    cfg: CategoryConfig,
+    list_type: str,
+    epochs: int = 4,
+) -> tuple[Any, dict]:
+    dataset = example_generator.generate_probe_dataset(cfg, n=200)
+    classifier = CategoryClassifier(cfg=cfg, embed_fn=embedding_fn)
+    train_result = classifier.train_probe(
+        positive_texts=dataset["positive"],
+        negative_texts=dataset["negative"],
+        epochs=epochs,
+    )
+    save_dir = _probe_dir(name=cfg.name, list_type=list_type, block_mode=cfg.block_mode)
+    classifier.save(save_dir)
+
+    _bucket_for(list_type, cfg.block_mode)[cfg.name] = classifier
+    configs[cfg.name] = cfg
+
+    metrics = {
+        "epochs": train_result.epochs,
+        "samples": train_result.samples,
+        "finalLoss": train_result.final_loss,
+        "probeDir": str(save_dir),
+    }
+    return classifier, metrics
+
+
 def _rebuild_runtime_from_store() -> None:
     configs.clear()
     blocklist_strict.clear()
@@ -77,7 +121,26 @@ def _rebuild_runtime_from_store() -> None:
         cfg.negative_definitions = record["negative_definitions"]
 
         configs[name] = cfg
-        _bucket_for(list_type, block_mode)[name] = Category(cfg, embed_fn=embedding_fn)
+        classifier = CategoryClassifier(cfg=cfg, embed_fn=embedding_fn)
+        probe_dir = _probe_dir(name=name, list_type=list_type, block_mode=block_mode)
+        if probe_dir.exists():
+            try:
+                classifier.load(probe_dir)
+            except Exception as exc:
+                print(f"Failed loading probe for category '{name}': {exc}")
+        else:
+            try:
+                print(f"Probe missing for category '{name}'. Training a new probe...")
+                dataset = example_generator.generate_probe_dataset(cfg, n=200)
+                classifier.train_probe(
+                    positive_texts=dataset["positive"],
+                    negative_texts=dataset["negative"],
+                    epochs=4,
+                )
+                classifier.save(probe_dir)
+            except Exception as exc:
+                print(f"Failed training startup probe for category '{name}': {exc}")
+        _bucket_for(list_type, block_mode)[name] = classifier
 
 _rebuild_runtime_from_store()
 
@@ -149,24 +212,44 @@ def checktab():
         print(f"Error parsing checktab payload: {e}")
         return jsonify({"status": "error", "msg": "Invalid payload format."}), 400
 
-    # url_text = " ".join(word for word in decompose_url(url) if word)
-    url_text = ""
+    url_text = " ".join(word for word in decompose_url(url) if word)
     candidate_text = f"{title} {url_text}".strip()
 
     if not candidate_text:
         return jsonify({"status": "error", "msg": "Missing tab content."}), 400
 
     matched = None
+    classifier_outputs: list[dict[str, Any]] = []
 
     # TODO: consider allowlist categories as well, and how they should interact with blocklist categories if there's overlap or conflictd
 
     # iterate through strict blocklist first, then warn blocklist so that if
     # candidate matches any strict category, we can break early
     blocklist = list(blocklist_strict.values()) + list(blocklist_warn.values())
-    for category in blocklist:
-        if category.matches(candidate_text):
-            matched = category.config
-            break
+    print(f"[checktab] candidate_text='{candidate_text}' active_classifiers={len(blocklist)}")
+    for classifier in blocklist:
+        score = classifier.score_text(candidate_text)
+        threshold = getattr(classifier, "decision_threshold", 0.5)
+        is_match = classifier.matches(candidate_text)
+
+        classifier_outputs.append(
+            {
+                "name": classifier.config.name,
+                "blockMode": classifier.config.block_mode,
+                "score": round(score, 4),
+                "threshold": round(float(threshold), 4),
+                "matched": bool(is_match),
+            }
+        )
+        print(
+            f"[checktab] classifier='{classifier.config.name}' mode='{classifier.config.block_mode}' "
+            f"score={score:.4f} threshold={float(threshold):.4f} matched={is_match}"
+        )
+
+        if is_match and matched is None:
+            matched = classifier.config
+
+    print(f"[checktab] outputs={classifier_outputs}")
 
     if matched:
         msg = f"Matched category: {matched.name}"
@@ -235,6 +318,21 @@ def description():
     cfg = CategoryConfig(name=name, initial_definition=desc, block_mode=block_mode)
     configs[cfg.name] = cfg
 
+    list_type = LISTTYPE_BLOCK
+
+    try:
+        _, probe_metrics = _train_and_attach_classifier(cfg=cfg, list_type=list_type, epochs=4)
+    except Exception as exc:
+        print(f"Error training probe for new category '{name}': {exc}")
+        return jsonify({"status": "error", "msg": "Failed to train category probe."}), 500
+
+    store.upsert_record(
+        name=cfg.name,
+        list_type=list_type,
+        block_mode=cfg.block_mode,
+        record=_config_to_record(cfg, list_type=list_type),
+    )
+
     tags: list[str] = []
     try:
         tags = example_generator.generate_examples(desc)
@@ -247,6 +345,7 @@ def description():
         "msg": f"CategoryConfig initialized for {name} in {list_type} with block mode {block_mode}.",
         "categoryName": name,
         "tags": tags,
+        "probeTraining": probe_metrics,
     })
 
 @app.route('/tags', methods=['POST'])
@@ -269,9 +368,13 @@ def tags():
     list_type = LISTTYPE_BLOCK # TODO: allow this to be specified in the future
 
     cfg.update_definitions(positive=positive_tags, negative=negative_tags)
-    category = Category(cfg, embed_fn=embedding_fn)
-    _bucket_for(list_type, cfg.block_mode)[name] = category
-    configs[name] = cfg
+
+    try:
+        _, probe_metrics = _train_and_attach_classifier(cfg=cfg, list_type=list_type, epochs=4)
+    except Exception as exc:
+        print(f"Error retraining probe for category '{name}': {exc}")
+        return jsonify({"status": "error", "msg": "Failed to retrain category probe."}), 500
+
     store.upsert_record(
         name=cfg.name,
         list_type=list_type,
@@ -286,6 +389,7 @@ def tags():
             "categoryName": cfg.name,
             "positiveCount": len(cfg.positive_definitions),
             "negativeCount": len(cfg.negative_definitions),
+            "probeTraining": probe_metrics,
         }
     )
 
@@ -312,6 +416,13 @@ def delete_config():
     deleted = store.delete_record(name=name, list_type=list_type, block_mode=block_mode)
     if not deleted:
         return jsonify({"status": "error", "msg": "Category not found."}), 404
+
+    probe_dir = _probe_dir(name=name, list_type=list_type, block_mode=block_mode)
+    if probe_dir.exists():
+        for child in probe_dir.iterdir():
+            if child.is_file():
+                child.unlink()
+        probe_dir.rmdir()
 
     _rebuild_runtime_from_store()
     return jsonify({"status": "success", "msg": "Category removed."})
