@@ -7,6 +7,29 @@ from category import Category, CategoryConfig, BLOCKMODE_STRICT, BLOCKMODE_WARN
 from gemini import ExampleGenerator
 from utils import decompose_url
 
+from dotenv import load_dotenv
+from elevenlabs.client import ElevenLabs
+from elevenlabs.play import play
+from elevenlabs import VoiceSettings
+import os
+load_dotenv()
+elevenlabs = ElevenLabs(
+  api_key=os.getenv("ELEVENLABS_API_KEY"),
+)
+
+# audio = elevenlabs.text_to_speech.convert(
+#     text="Maowww... I am a squoo. SquooberDASH. Hey, hello, welcome to Deerhacks",
+#     voice_id="Nggzl2QAXh3OijoXD116",
+#     model_id="eleven_monolingual_v1",
+#     output_format="mp3_44100_128",
+#     voice_settings=VoiceSettings(
+#         stability=0.5,
+#         similarity_boost=0.75,
+#         style=0.0,
+#         speed=0.7,
+#     ),
+# )
+
 app = Flask(__name__)
 CORS(app)
 
@@ -161,4 +184,5 @@ def tags():
     )
 
 if __name__ == '__main__':
+    # play(audio)
     app.run(port=8000, host="0.0.0.0", debug=True)
