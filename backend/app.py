@@ -13,6 +13,9 @@ CORS(app)
 embedder = SentenceTransformer("Snowflake/snowflake-arctic-embed-xs")
 example_generator = ExampleGenerator()
 
+def embed_fn(texts: list[str]) -> torch.Tensor:
+    return torch.as_tensor(embedder.encode(texts), dtype=torch.float32)
+
 configs: dict[str, CategoryConfig] = {}
 blocklist_strict: dict[str, Category] = {}
 blocklist_warn: dict[str, Category] = {}
