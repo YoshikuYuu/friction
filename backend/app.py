@@ -27,7 +27,9 @@ CORS(app)
 embedder = SentenceTransformer("Snowflake/snowflake-arctic-embed-xs")
 example_generator = ExampleGenerator()
 
-def embedding_fn(texts: list[str]) -> torch.Tensor:
+def embedding_fn(texts: list[str], query: bool) -> torch.Tensor:
+    if query:
+        return torch.as_tensor(embedder.encode(texts, prompt="query"), dtype=torch.float32)
     return torch.as_tensor(embedder.encode(texts), dtype=torch.float32)
 
 configs: dict[str, CategoryConfig] = {}
@@ -147,7 +149,8 @@ def checktab():
         print(f"Error parsing checktab payload: {e}")
         return jsonify({"status": "error", "msg": "Invalid payload format."}), 400
 
-    url_text = " ".join(word for word in decompose_url(url) if word)
+    # url_text = " ".join(word for word in decompose_url(url) if word)
+    url_text = ""
     candidate_text = f"{title} {url_text}".strip()
 
     if not candidate_text:
