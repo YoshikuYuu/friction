@@ -21,23 +21,28 @@ class ProbeTrainingResult:
     losses: List[float]
 
 
-class LoRALinearProbe(nn.Module):
-    def __init__(self, input_dim: int, rank: int = 8):
+class LinearProbe(nn.Module):
+    def __init__(self,
+                 input_dim: int,
+                 hidden_dim: int = 8,
+                 init_bias: float = -2.0):
         super().__init__()
-        if rank < 1:
-            raise ValueError("rank must be at least 1")
+        if hidden_dim < 1:
+            raise ValueError("hidden_dim must be at least 1")
 
         self.input_dim = input_dim
-        self.rank = rank
-        self.down = nn.Linear(input_dim, rank, bias=False)
-        self.up = nn.Linear(rank, 1, bias=False)
-        self.bias = nn.Parameter(torch.zeros(1))
-
-        nn.init.normal_(self.down.weight, std=0.02)
-        nn.init.zeros_(self.up.weight)
+        self.hidden_dim = hidden_dim
+        self.classifier = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim, bias=False),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1, bias=True),
+            nn.Sigmoid()
+        )
+        # Initialize bias to always predict negative
+        nn.init.constant_(self.classifier[2].bias, init_bias)  # type: ignore
 
     def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
-        logits = self.up(self.down(embeddings)).squeeze(-1) + self.bias
+        logits = self.classifier(embeddings)
         return logits
 
 
@@ -56,7 +61,7 @@ class CategoryClassifier:
         self.probe_rank = probe_rank
         self.decision_threshold = decision_threshold
 
-        self.probe: LoRALinearProbe | None = None
+        self.probe: LinearProbe | None = None
 
     def _as_tensor(self, values) -> torch.Tensor:
         if isinstance(values, torch.Tensor):
@@ -70,7 +75,7 @@ class CategoryClassifier:
 
     def _ensure_probe(self, input_dim: int) -> None:
         if self.probe is None:
-            self.probe = LoRALinearProbe(input_dim=input_dim, rank=self.probe_rank)
+            self.probe = LinearProbe(input_dim=input_dim, hidden_dim=self.probe_rank)
 
     def update_definitions(self, positive: List[str], negative: List[str]) -> None:
         self.config.update_definitions(positive=positive, negative=negative)
@@ -222,6 +227,6 @@ class CategoryClassifier:
             metadata.get("decision_threshold", self.decision_threshold)
         )
 
-        self.probe = LoRALinearProbe(input_dim=input_dim, rank=self.probe_rank)
+        self.probe = LinearProbe(input_dim=input_dim, hidden_dim=self.probe_rank)
         state_dict = torch.load(state_path, map_location="cpu")
         self.probe.load_state_dict(state_dict)
