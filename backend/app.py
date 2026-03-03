@@ -12,20 +12,11 @@ from typing import Any
 
 from category import CategoryConfig, BLOCKMODE_STRICT, BLOCKMODE_WARN
 from config_store import ConfigStore, LISTTYPE_ALLOW, LISTTYPE_BLOCK
+import voice
 from gemini import ExampleGenerator
 from utils import decompose_url
 
 CategoryClassifier = importlib.import_module("categoryclassifier").CategoryClassifier
-
-from dotenv import load_dotenv
-from elevenlabs.client import ElevenLabs
-from elevenlabs.play import play
-from elevenlabs import VoiceSettings
-import os
-load_dotenv()
-elevenlabs = ElevenLabs(
-  api_key=os.getenv("ELEVENLABS_API_KEY"),
-)
 
 app = Flask(__name__)
 CORS(app)
@@ -218,19 +209,7 @@ def _parse_tags_payload(data):
 
 @app.route('/home', methods=['POST'])
 def home():
-    audio = elevenlabs.text_to_speech.convert(
-        text="Hey there. Welcome to BlockedIn.",
-        voice_id="Nggzl2QAXh3OijoXD116",
-        model_id="eleven_monolingual_v1",
-        output_format="mp3_44100_128",
-        voice_settings=VoiceSettings(
-            stability=0.5,
-            similarity_boost=0.75,
-            style=0.0,
-            speed=0.7,
-        ),
-    )
-    play(audio)
+    voice.play_home_welcome()
     return jsonify({"status": "success"})
 
 
@@ -309,19 +288,7 @@ def strict_audio(category_name: str | None = None):
     line = DEFAULT_MASCOT_LINES["strict"]
     if category_name:
         line = mascot_lines_by_category.get(category_name, DEFAULT_MASCOT_LINES).get("strict", line)
-    audio = elevenlabs.text_to_speech.convert(
-        text=line,
-        voice_id="Nggzl2QAXh3OijoXD116",
-        model_id="eleven_monolingual_v1",
-        output_format="mp3_44100_128",
-        voice_settings=VoiceSettings(
-            stability=0.5,
-            similarity_boost=0.75,
-            style=0.0,
-            speed=0.7,
-        ),
-    )
-    play(audio)
+    voice.speak(line)
 
 def warn_audio(category_name: str | None = None):
     time.sleep(0.3)  # only blocks this thread
@@ -330,19 +297,7 @@ def warn_audio(category_name: str | None = None):
     if category_name:
         line = mascot_lines_by_category.get(category_name, DEFAULT_MASCOT_LINES).get("warn", line)
 
-    audio = elevenlabs.text_to_speech.convert(
-        text=line,
-        voice_id="Nggzl2QAXh3OijoXD116",
-        model_id="eleven_monolingual_v1",
-        output_format="mp3_44100_128",
-        voice_settings=VoiceSettings(
-            stability=0.5,
-            similarity_boost=0.75,
-            style=0.0,
-            speed=0.7,
-        ),
-    )
-    play(audio)
+    voice.speak(line)
 
 @app.route('/description', methods=['POST'])
 def description():

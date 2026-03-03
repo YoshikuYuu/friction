@@ -11,6 +11,8 @@ cryptography==46.0.5
 cuda-bindings==12.9.4
 cuda-pathfinder==1.4.0
 distro==1.9.0
+dotenv==0.9.9
+elevenlabs==2.37.0
 filelock==3.24.3
 flask==3.0.3
 flask-cors==6.0.2
