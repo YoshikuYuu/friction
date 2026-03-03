@@ -1,6 +1,6 @@
 # Setup
 
-Copy .env.example and add your Gemini API key (required) and Huggingface Token (optional).
+Copy .env.example and add your Gemini API key (required), ElevenLabs API key (optional), and Huggingface Token (optional).
 ```bash
 cp .env.example .env
 ```
